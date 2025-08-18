@@ -1,39 +1,29 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
-use App\Models\Transaction;
+use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\ProfileController;
+use Stancl\Tenancy\Middleware\InitializeTenancyByPath;
+use Stancl\Tenancy\Middleware\PreventAccessFromCentralDomains;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+// (central opcional)
+Route::get('/', fn () => view('welcome'));
 
-Route::get('/dashboard', function () {
-    return redirect()->route('transactions.index');
-})->middleware(['auth', 'verified'])->name('dashboard');
-    
+// tudo do tenant: /t/{tenant}/...
+Route::group([
+    'prefix' => '/t/{tenant}',
+    'middleware' => [
+        'web',
+        InitializeTenancyByPath::class,
+        PreventAccessFromCentralDomains::class,
+    ],
+], function () {
+    // Auth do Breeze dentro do tenant
+    require __DIR__ . '/auth.php';
 
-Route::middleware('auth')->group(function () {
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-});
-
-Route::middleware(['auth'])->group(function () {
-    Route::resource('transactions', TransactionController::class);
-});
-
-
-require __DIR__.'/auth.php';
-
-Route::middleware(['tenant','web'])->group(function () {
-    // Breeze auth DENTRO do tenant: /t/{tenant}/login, /register etc.
-    require __DIR__.'/auth.php';
-
-    // após login, ir para a lista
+    // após login, manda pra lista
     Route::get('/dashboard', fn () => redirect()->route('transactions.index'))
-        ->middleware(['auth','verified'])
+        ->middleware(['auth', 'verified'])
         ->name('dashboard');
 
     Route::middleware('auth')->group(function () {
@@ -42,4 +32,7 @@ Route::middleware(['tenant','web'])->group(function () {
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
         Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     });
+
+    // rota de teste
+    Route::get('/ping', fn () => 'pong-tenant')->name('tenant.ping');
 });
